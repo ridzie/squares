@@ -6,9 +6,6 @@
   <style>
     html, body { margin: 0; padding: 0; height: 100%; background: #111; }
     canvas { display: block; background: #222; }
-    #rules {
-      display: none; /* moved into game over screen */
-    }
   </style>
 </head>
 <body>
@@ -97,7 +94,9 @@ function update() {
   }
 
   frame++;
-  if (frame % 25 === 0) spawnBlock();
+  // adaptive spawn frequency (faster with higher score)
+  let spawnInterval = Math.max(10, 25 - Math.floor(score/10));
+  if (frame % spawnInterval === 0) spawnBlock();
 
   blocks.forEach(b => {
     b.x += b.dx;
@@ -141,8 +140,11 @@ function update() {
     }
   });
 
+  // keep only active blocks in viewport, and cap total number
+  let maxBlocks = Math.min(50, 10 + Math.floor(score/2));
   blocks = blocks.filter(b => !b.dead &&
-    b.y < canvas.height+100 && b.y > -100 && b.x > -100 && b.x < canvas.width+100);
+    b.y < canvas.height+100 && b.y > -100 && b.x > -100 && b.x < canvas.width+100)
+    .slice(-maxBlocks);
 
   popups.forEach(p => { p.y -= 0.5; p.alpha -= 0.02; });
   popups = popups.filter(p => p.alpha > 0);
