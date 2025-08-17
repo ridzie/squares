@@ -20,7 +20,7 @@
 <body>
 <canvas id="game"></canvas>
 <div id="rules">
-  White = +1 point | Black = Grow (harder) | Red = Game Over
+  White = +1 point | Black = Grow (rise from bottom) | Red = Game Over
 </div>
 <script>
 const canvas = document.getElementById("game");
@@ -49,16 +49,34 @@ document.addEventListener("touchmove", e => {
 });
 
 function spawnBlock() {
-  let type = Math.random();
-  let block = {
-    x: Math.random() * canvas.width,
-    y: -20,
-    size: 20,
-    color: "white",
-    type: "normal"
-  };
-  if (type < 0.1) { block.color = "red"; block.type = "diagonal"; block.dx = (Math.random()<0.5?-1:1)*speed; }
-  else if (type < 0.2) { block.color = "black"; block.type = "grow"; }
+  let r = Math.random();
+  let block = { x: 0, y: 0, size: 20, color: "white", type: "normal", dx: 0, dy: speed };
+
+  // Probability tuning
+  // Red chance grows with score
+  let redChance = 0.05 + Math.min(score/200, 0.25); // from 5% up to 30%
+  if (r < redChance) {
+    block.x = Math.random() * canvas.width;
+    block.y = -20;
+    block.color = "red";
+    block.type = "diagonal";
+    block.dx = (Math.random()<0.5?-1:1)*speed;
+    block.dy = speed;
+  }
+  else if (r < 0.45) { // ~40% black blocks
+    block.x = Math.random() * canvas.width;
+    block.y = canvas.height + 20; // spawn from bottom
+    block.color = "black";
+    block.type = "grow";
+    block.dy = -speed; // move upward
+  }
+  else { // rest white
+    block.x = Math.random() * canvas.width;
+    block.y = -20;
+    block.color = "white";
+    block.type = "normal";
+    block.dy = speed;
+  }
   blocks.push(block);
 }
 
@@ -67,8 +85,8 @@ function update() {
   if (frame % 25 === 0) spawnBlock();
 
   blocks.forEach(b => {
-    if (b.type === "diagonal") { b.x += b.dx; b.y += speed; }
-    else b.y += speed;
+    b.x += b.dx;
+    b.y += b.dy;
 
     // collision check
     if (Math.abs(player.x - b.x) < (player.size+b.size)/2 &&
@@ -85,7 +103,10 @@ function update() {
     }
   });
 
-  blocks = blocks.filter(b => !b.dead && b.y < canvas.height+50);
+  // remove off-screen
+  blocks = blocks.filter(b => !b.dead &&
+    b.y < canvas.height+50 && b.y > -50 && b.x > -50 && b.x < canvas.width+50);
+
   speed = 2 + Math.floor(score/10);
 }
 
