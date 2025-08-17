@@ -20,7 +20,7 @@
 <body>
 <canvas id="game"></canvas>
 <div id="rules">
-  White = +1 | Black = Grow & -1 | Red = Game Over | Green Circle = Shrink & +2
+  White = +1 (10 whites → shrink by 1) | Black = Grow & -1 | Red = Game Over | Green = Shrink & +2
 </div>
 <script>
 const canvas = document.getElementById("game");
@@ -33,11 +33,13 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-let player = { x: canvas.width/2, y: canvas.height-80, size: 20, color: "white" };
+const START_SIZE = 20;
+let player = { x: canvas.width/2, y: canvas.height-80, size: START_SIZE, color: "white" };
 let blocks = [];
 let speed = 2;
 let frame = 0;
 let score = 0;
+let whiteCount = 0;
 
 function handleInput(x,y){
   player.x = x; player.y = y;
@@ -48,44 +50,62 @@ document.addEventListener("touchmove", e => {
   handleInput(t.clientX, t.clientY);
 });
 
+// helper: spawn green from random edge
+function spawnGreen() {
+  let edge = Math.floor(Math.random()*4);
+  let b = {size: player.size, color:"green", type:"shrink"};
+  let speedMag = 2 + Math.random()*4;
+  let angle;
+
+  if (edge === 0) { b.x = Math.random()*canvas.width; b.y = -20; angle = Math.random()*Math.PI + Math.PI/2; }
+  else if (edge === 1) { b.x = Math.random()*canvas.width; b.y = canvas.height+20; angle = Math.random()*Math.PI - Math.PI/2; }
+  else if (edge === 2) { b.x = -20; b.y = Math.random()*canvas.height; angle = Math.random()*Math.PI - Math.PI/2; }
+  else { b.x = canvas.width+20; b.y = Math.random()*canvas.height; angle = Math.random()*Math.PI + Math.PI/2; }
+
+  b.dx = Math.cos(angle)*speedMag;
+  b.dy = Math.sin(angle)*speedMag;
+  return b;
+}
+
 function spawnBlock() {
   let r = Math.random();
-  let block = { x: 0, y: 0, size: 20, color: "white", type: "normal", dx: 0, dy: speed };
+  let block;
 
   let redChance = 0.05 + Math.min(score/200, 0.25); // 5%→30%
   if (r < redChance) {
-    // Red diagonal
-    block.x = Math.random() * canvas.width;
-    block.y = -20;
-    block.color = "red";
-    block.type = "diagonal";
-    block.dx = (Math.random()<0.5?-1:1)*speed;
-    block.dy = speed;
+    block = {
+      x: Math.random() * canvas.width,
+      y: -20,
+      color: "red",
+      type: "diagonal",
+      dx: (Math.random()<0.5?-1:1)*speed,
+      dy: speed
+    };
   }
   else if (r < redChance + 0.4) {
-    // Black (40%)
-    block.x = Math.random() * canvas.width;
-    block.y = canvas.height + 20;
-    block.color = "black";
-    block.type = "grow";
-    block.dy = -speed;
+    block = {
+      x: Math.random() * canvas.width,
+      y: canvas.height + 20,
+      color: "black",
+      type: "grow",
+      dx: 0,
+      dy: -speed
+    };
   }
   else if (r < redChance + 0.45) {
-    // Green rare (5%)
-    block.x = Math.random() * canvas.width;
-    block.y = -20;
-    block.color = "green";
-    block.type = "shrink";
-    block.dy = speed;
+    block = spawnGreen();
   }
   else {
-    // White normal
-    block.x = Math.random() * canvas.width;
-    block.y = -20;
-    block.color = "white";
-    block.type = "normal";
-    block.dy = speed;
+    block = {
+      x: Math.random() * canvas.width,
+      y: -20,
+      color: "white",
+      type: "normal",
+      dx: 0,
+      dy: speed
+    };
   }
+  block.size = player.size; // sync with cursor size
   blocks.push(block);
 }
 
@@ -96,28 +116,34 @@ function update() {
   blocks.forEach(b => {
     b.x += b.dx;
     b.y += b.dy;
+    b.size = player.size; // update size dynamically
 
-    // collision check
+    // collision
     if (Math.abs(player.x - b.x) < (player.size+b.size)/2 &&
         Math.abs(player.y - b.y) < (player.size+b.size)/2) {
       if (b.type === "grow") {
         player.size += 5;
-        score = Math.max(0, score-1); // -1 point
+        score = Math.max(0, score-1);
       } else if (b.type === "diagonal") {
         alert("Game Over! Score: " + score);
         document.location.reload();
       } else if (b.type === "shrink") {
-        player.size = Math.max(10, player.size - 5); // shrink
+        player.size = Math.max(10, player.size - 5);
         score += 2;
-      } else {
+      } else if (b.type === "normal") {
         score++;
+        whiteCount++;
+        if (whiteCount >= 10) {
+          if (player.size > START_SIZE) player.size -= 1; // shrink by 1, not below START_SIZE
+          whiteCount = 0;
+        }
       }
       b.dead = true;
     }
   });
 
   blocks = blocks.filter(b => !b.dead &&
-    b.y < canvas.height+50 && b.y > -50 && b.x > -50 && b.x < canvas.width+50);
+    b.y < canvas.height+100 && b.y > -100 && b.x > -100 && b.x < canvas.width+100);
 
   speed = 2 + Math.floor(score/10);
 }
@@ -126,9 +152,11 @@ function draw() {
   ctx.fillStyle = "#222";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // player
   ctx.fillStyle = player.color;
   ctx.fillRect(player.x-player.size/2, player.y-player.size/2, player.size, player.size);
 
+  // blocks
   blocks.forEach(b => {
     ctx.fillStyle = b.color;
     if (b.type === "shrink") {
@@ -140,9 +168,14 @@ function draw() {
     }
   });
 
+  // score bar background
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(5, 5, 140, 28);
+
+  // score text
   ctx.fillStyle = "white";
   ctx.font = "16px sans-serif";
-  ctx.fillText("Score: "+score, 10, 20);
+  ctx.fillText("Score: "+score, 15, 25);
 }
 
 function loop() {
