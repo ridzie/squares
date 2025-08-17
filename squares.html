@@ -40,7 +40,11 @@ let speed = 2;
 let frame = 0;
 let score = 0;
 let whiteCount = 0;
-let popups = []; // floating notifications
+let popups = [];
+
+// game over effect
+let gameOver = false;
+let spill = null; // {x,y,radius}
 
 function handleInput(x,y){
   player.x = x; player.y = y;
@@ -51,7 +55,6 @@ document.addEventListener("touchmove", e => {
   handleInput(t.clientX, t.clientY);
 });
 
-// helper: spawn green from random edge
 function spawnGreen() {
   let edge = Math.floor(Math.random()*4);
   let b = {size: player.size, color:"green", type:"shrink"};
@@ -71,7 +74,7 @@ function spawnGreen() {
 function spawnBlock() {
   let r = Math.random();
   let block;
-  let redChance = 0.05 + Math.min(score/200, 0.25); // 5%→30%
+  let redChance = 0.05 + Math.min(score/200, 0.25);
 
   if (r < redChance) {
     block = { x: Math.random()*canvas.width, y: -20, color:"red", type:"diagonal",
@@ -96,6 +99,11 @@ function addPopup(text, color="white") {
 }
 
 function update() {
+  if (gameOver) {
+    if (spill) spill.radius += 40; // expand faster
+    return;
+  }
+
   frame++;
   if (frame % 25 === 0) spawnBlock();
 
@@ -104,16 +112,15 @@ function update() {
     b.y += b.dy;
     b.size = player.size;
 
-    // collision
     if (Math.abs(player.x - b.x) < (player.size+b.size)/2 &&
         Math.abs(player.y - b.y) < (player.size+b.size)/2) {
       if (b.type === "grow") {
         player.size += 5;
-        score = Math.max(0, score-1);
+        score -= 1;
         addPopup("-1", "red");
       } else if (b.type === "diagonal") {
-        alert("Game Over! Score: " + score);
-        document.location.reload();
+        gameOver = true;
+        spill = { x: b.x, y: b.y, radius: 0 };
       } else if (b.type === "shrink") {
         player.size = Math.max(10, player.size - 5);
         score += 2;
@@ -137,7 +144,6 @@ function update() {
   blocks = blocks.filter(b => !b.dead &&
     b.y < canvas.height+100 && b.y > -100 && b.x > -100 && b.x < canvas.width+100);
 
-  // update popups
   popups.forEach(p => { p.y -= 0.5; p.alpha -= 0.02; });
   popups = popups.filter(p => p.alpha > 0);
 
@@ -149,8 +155,10 @@ function draw() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // player
-  ctx.fillStyle = player.color;
-  ctx.fillRect(player.x-player.size/2, player.y-player.size/2, player.size, player.size);
+  if (!gameOver) {
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x-player.size/2, player.y-player.size/2, player.size, player.size);
+  }
 
   // blocks
   blocks.forEach(b => {
@@ -171,7 +179,7 @@ function draw() {
   ctx.font = "16px sans-serif";
   ctx.fillText("Score: "+score, 15, 25);
 
-  // popups bottom-right
+  // popups
   ctx.font = "18px sans-serif";
   ctx.textAlign = "right";
   popups.forEach(p => {
@@ -179,6 +187,20 @@ function draw() {
     ctx.fillText(p.text, canvas.width-10, p.y);
   });
   ctx.textAlign = "left";
+
+  // game over spill effect
+  if (spill) {
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(spill.x, spill.y, spill.radius, 0, Math.PI*2);
+    ctx.fill();
+    if (spill.radius > Math.max(canvas.width, canvas.height)*1.5) {
+      ctx.fillStyle = "black";
+      ctx.font = "32px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Game Over - Final Score: "+score, canvas.width/2, canvas.height/2);
+    }
+  }
 }
 
 function loop() {
