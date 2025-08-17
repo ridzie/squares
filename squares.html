@@ -20,7 +20,7 @@
 <body>
 <canvas id="game"></canvas>
 <div id="rules">
-  White = +1 point | Black = Grow (rise from bottom) | Red = Game Over
+  White = +1 | Black = Grow & -1 | Red = Game Over | Green Circle = Shrink & +2
 </div>
 <script>
 const canvas = document.getElementById("game");
@@ -52,10 +52,9 @@ function spawnBlock() {
   let r = Math.random();
   let block = { x: 0, y: 0, size: 20, color: "white", type: "normal", dx: 0, dy: speed };
 
-  // Probability tuning
-  // Red chance grows with score
-  let redChance = 0.05 + Math.min(score/200, 0.25); // from 5% up to 30%
+  let redChance = 0.05 + Math.min(score/200, 0.25); // 5%→30%
   if (r < redChance) {
+    // Red diagonal
     block.x = Math.random() * canvas.width;
     block.y = -20;
     block.color = "red";
@@ -63,14 +62,24 @@ function spawnBlock() {
     block.dx = (Math.random()<0.5?-1:1)*speed;
     block.dy = speed;
   }
-  else if (r < 0.45) { // ~40% black blocks
+  else if (r < redChance + 0.4) {
+    // Black (40%)
     block.x = Math.random() * canvas.width;
-    block.y = canvas.height + 20; // spawn from bottom
+    block.y = canvas.height + 20;
     block.color = "black";
     block.type = "grow";
-    block.dy = -speed; // move upward
+    block.dy = -speed;
   }
-  else { // rest white
+  else if (r < redChance + 0.45) {
+    // Green rare (5%)
+    block.x = Math.random() * canvas.width;
+    block.y = -20;
+    block.color = "green";
+    block.type = "shrink";
+    block.dy = speed;
+  }
+  else {
+    // White normal
     block.x = Math.random() * canvas.width;
     block.y = -20;
     block.color = "white";
@@ -93,9 +102,13 @@ function update() {
         Math.abs(player.y - b.y) < (player.size+b.size)/2) {
       if (b.type === "grow") {
         player.size += 5;
+        score = Math.max(0, score-1); // -1 point
       } else if (b.type === "diagonal") {
         alert("Game Over! Score: " + score);
         document.location.reload();
+      } else if (b.type === "shrink") {
+        player.size = Math.max(10, player.size - 5); // shrink
+        score += 2;
       } else {
         score++;
       }
@@ -103,7 +116,6 @@ function update() {
     }
   });
 
-  // remove off-screen
   blocks = blocks.filter(b => !b.dead &&
     b.y < canvas.height+50 && b.y > -50 && b.x > -50 && b.x < canvas.width+50);
 
@@ -119,7 +131,13 @@ function draw() {
 
   blocks.forEach(b => {
     ctx.fillStyle = b.color;
-    ctx.fillRect(b.x-b.size/2, b.y-b.size/2, b.size, b.size);
+    if (b.type === "shrink") {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.size/2, 0, Math.PI*2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(b.x-b.size/2, b.y-b.size/2, b.size, b.size);
+    }
   });
 
   ctx.fillStyle = "white";
