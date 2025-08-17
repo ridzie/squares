@@ -7,21 +7,12 @@
     html, body { margin: 0; padding: 0; height: 100%; background: #111; }
     canvas { display: block; background: #222; }
     #rules {
-      position: fixed;
-      bottom: 5px; left: 0; right: 0;
-      text-align: center;
-      color: white;
-      font-family: sans-serif;
-      font-size: 14px;
-      pointer-events: none;
+      display: none; /* moved into game over screen */
     }
   </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="rules">
-  White = +1 (10 whites → shrink by 1) | Black = Grow & -1 | Red = Game Over | Green = Shrink & +2
-</div>
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -40,11 +31,12 @@ let speed = 2;
 let frame = 0;
 let score = 0;
 let whiteCount = 0;
+let blackCount = 0;
 let popups = [];
 
 // game over effect
 let gameOver = false;
-let spill = null; // {x,y,radius}
+let spill = null;
 
 function handleInput(x,y){
   player.x = x; player.y = y;
@@ -100,7 +92,7 @@ function addPopup(text, color="white") {
 
 function update() {
   if (gameOver) {
-    if (spill) spill.radius += 40; // expand faster
+    if (spill) spill.radius += 40;
     return;
   }
 
@@ -117,7 +109,15 @@ function update() {
       if (b.type === "grow") {
         player.size += 5;
         score -= 1;
+        blackCount++;
         addPopup("-1", "red");
+        if (blackCount >= 10) {
+          if (player.size > START_SIZE) {
+            player.size -= 1;
+            addPopup("size -1", "orange");
+          }
+          blackCount = 0;
+        }
       } else if (b.type === "diagonal") {
         gameOver = true;
         spill = { x: b.x, y: b.y, radius: 0 };
@@ -154,13 +154,11 @@ function draw() {
   ctx.fillStyle = "#222";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // player
   if (!gameOver) {
     ctx.fillStyle = player.color;
     ctx.fillRect(player.x-player.size/2, player.y-player.size/2, player.size, player.size);
   }
 
-  // blocks
   blocks.forEach(b => {
     ctx.fillStyle = b.color;
     if (b.type === "shrink") {
@@ -183,12 +181,12 @@ function draw() {
   ctx.font = "18px sans-serif";
   ctx.textAlign = "right";
   popups.forEach(p => {
-    ctx.fillStyle = `rgba(${p.color==="red"?"255,0,0":p.color==="lime"?"0,255,0":p.color==="yellow"?"255,255,0":"255,255,255"},${p.alpha})`;
+    ctx.fillStyle = `rgba(${p.color==="red"?"255,0,0":p.color==="lime"?"0,255,0":p.color==="yellow"?"255,255,0":p.color==="orange"?"255,165,0":"255,255,255"},${p.alpha})`;
     ctx.fillText(p.text, canvas.width-10, p.y);
   });
   ctx.textAlign = "left";
 
-  // game over spill effect
+  // game over spill
   if (spill) {
     ctx.fillStyle = "red";
     ctx.beginPath();
@@ -196,9 +194,16 @@ function draw() {
     ctx.fill();
     if (spill.radius > Math.max(canvas.width, canvas.height)*1.5) {
       ctx.fillStyle = "black";
-      ctx.font = "32px sans-serif";
+      ctx.font = "28px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Game Over - Final Score: "+score, canvas.width/2, canvas.height/2);
+      ctx.fillText("Game Over - Final Score: "+score, canvas.width/2, canvas.height/2 - 40);
+
+      ctx.font = "18px sans-serif";
+      ctx.fillText("Rules:", canvas.width/2, canvas.height/2);
+      ctx.fillText("White = +1 (10 whites → size -1)", canvas.width/2, canvas.height/2 + 25);
+      ctx.fillText("Black = Grow & -1 (10 blacks → size -1)", canvas.width/2, canvas.height/2 + 50);
+      ctx.fillText("Red = Game Over", canvas.width/2, canvas.height/2 + 75);
+      ctx.fillText("Green = Shrink & +2", canvas.width/2, canvas.height/2 + 100);
     }
   }
 }
