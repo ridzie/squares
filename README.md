@@ -1,29 +1,40 @@
 # Square Survival
 
-A minimalist browser game built with **HTML5 Canvas + JavaScript**.  
-You control a square that follows your mouse/touch. Survive falling blocks, manage your size, and chase a high score.  
+A simple browser-based survival game built with HTML5 canvas and vanilla JavaScript.
 
----
+## How to Play
 
-## 🎮 Gameplay Rules
+- You are the white square.  
+- Move the mouse (or finger on touch devices) to control the square.  
+- Collect white squares for +1 point. Every 10 whites reduce your size by 1.  
+- Avoid black squares. Touching them makes you grow and lose 1 point. Every 10 blacks reduce your size by 1.  
+- Avoid red squares. They end the game on contact.  
+- Collect green circles to shrink and gain +2 points.  
+- Pink "glitch" blocks vanish after spawning.  
 
-- **White squares** → `+1` point  
-  - Every 10 whites shrink your size by 1 (not smaller than the starting size).  
-- **Black squares** → Grow in size and `-1` point  
-  - Every 10 blacks shrink your size by 1.  
-- **Red squares** → Instant **Game Over** (fall diagonally).  
-- **Green circles** → Rare, give `+2` points and shrink you.  
-- **Pink glitch blocks** → Disappear on their own (only after score > 50 or < -50).  
+The game ends when you hit a red block. A spill animation covers the screen, showing your final score and rules. A restart button allows you to try again without refreshing.
 
-The game ends in a red screen spill when you hit a red square.  
+## Project Structure
+squares-game/
+├── index.html   # main HTML entry point
+├── style.css    # styles for page and rule bar
+├── game.js      # main game logic
+└── README.md    # documentation
 
----
+## Development
 
-## 🖥️ How to Run
+This game does not require any frameworks or build tools. Open `index.html` in any modern browser.
 
-Clone the repo and open `squares.html` in any modern browser:
+- `index.html` sets up the canvas and includes `style.css` and `game.js`.
+- `style.css` contains global styles and rule bar styles.
+- `game.js` contains all rendering and game logic.
 
-```bash
-git clone https://github.com/yourusername/square-survival.git
-cd square-survival
-open squares.html   # or double click the file
+## Future Plans
+
+- Split game logic into modules (engine vs gameplay) for scalability.
+- Add backend integration to store global top scores.
+- Optional framework migration (Phaser or PixiJS) if more complex features are needed.
+
+## License
+
+MIT License

@@ -1,0 +1,266 @@
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let restartButton = null;
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+const START_SIZE = 20;
+let player, blocks, speed, frame, score, whiteCount, blackCount, popups;
+let gameOver, spill, restartReady;
+
+function resetGame() {
+  player = { x: canvas.width/2, y: canvas.height-80, size: START_SIZE, color: "white" };
+  blocks = [];
+  speed = 2;
+  frame = 0;
+  score = 0;
+  whiteCount = 0;
+  blackCount = 0;
+  popups = [];
+  gameOver = false;
+  spill = null;
+  restartReady = false;
+  restartButton = null;
+}
+resetGame();
+
+function handleInput(x,y){
+  player.x = x; player.y = y;
+}
+document.addEventListener("mousemove", e => handleInput(e.clientX, e.clientY));
+document.addEventListener("touchmove", e => {
+  let t = e.touches[0];
+  handleInput(t.clientX, t.clientY);
+});
+document.addEventListener("click", (e) => {
+  if (restartButton) {
+    const rect = restartButton;
+    if (e.clientX >= rect.x && e.clientX <= rect.x + rect.w &&
+        e.clientY >= rect.y && e.clientY <= rect.y + rect.h) {
+      resetGame();
+      return;
+    }
+  }
+  if (restartReady) resetGame();
+});
+document.addEventListener("touchstart", (e) => {
+  const t = e.touches[0];
+  if (restartButton) {
+    const rect = restartButton;
+    if (t.clientX >= rect.x && t.clientX <= rect.x + rect.w &&
+        t.clientY >= rect.y && t.clientY <= rect.y + rect.h) {
+      resetGame();
+      return;
+    }
+  }
+  if (restartReady) resetGame();
+});
+
+function spawnGreen() {
+  let edge = Math.floor(Math.random()*4);
+  let b = {size: player.size, color:"green", type:"shrink"};
+  let speedMag = 2 + Math.random()*4;
+  let angle;
+
+  if (edge === 0) { b.x = Math.random()*canvas.width; b.y = -20; angle = Math.random()*Math.PI + Math.PI/2; }
+  else if (edge === 1) { b.x = Math.random()*canvas.width; b.y = canvas.height+20; angle = Math.random()*Math.PI - Math.PI/2; }
+  else if (edge === 2) { b.x = -20; b.y = Math.random()*canvas.height; angle = Math.random()*Math.PI - Math.PI/2; }
+  else { b.x = canvas.width+20; b.y = Math.random()*canvas.height; angle = Math.random()*Math.PI + Math.PI/2; }
+
+  b.dx = Math.cos(angle)*speedMag;
+  b.dy = Math.sin(angle)*speedMag;
+  return b;
+}
+
+function spawnBlock() {
+  let r = Math.random();
+  let block;
+  let redChance = 0.05 + Math.min(Math.abs(score)/150, 0.3);
+
+  if (r < redChance) {
+    block = { x: Math.random()*canvas.width, y: -20, color:"red", type:"diagonal",
+              dx:(Math.random()<0.5?-1:1)*speed, dy:speed };
+  }
+  else if (r < redChance + 0.4) {
+    block = { x: Math.random()*canvas.width, y: canvas.height+20, color:"black", type:"grow",
+              dx:0, dy:-speed };
+  }
+  else if (r < redChance + 0.45) {
+    block = spawnGreen();
+  }
+  else {
+    block = { x: Math.random()*canvas.width, y: -20, color:"white", type:"normal", dx:0, dy:speed };
+  }
+
+  block.size = player.size;
+
+  if (Math.abs(score) >= 50 && Math.random() < 0.1) {
+    block.type = "glitch";
+    block.color = "pink";
+    block.glitchTimer = 40 + Math.floor(Math.random()*30);
+  }
+
+  blocks.push(block);
+}
+
+function addPopup(text, color="white") {
+  popups.push({ text, color, alpha:1, y:canvas.height-40 });
+}
+
+function update() {
+  if (gameOver) {
+    if (spill) spill.radius += 40;
+    if (spill && spill.radius > Math.max(canvas.width, canvas.height)*1.5) {
+      restartReady = true;
+      if (!restartButton) {
+        restartButton = {x: canvas.width/2 - 60, y: canvas.height/2 + 180, w: 120, h: 40};
+      }
+    }
+    return;
+  }
+
+  frame++;
+  let spawnInterval = Math.max(6, 20 - Math.floor(Math.abs(score)/8));
+  if (frame % spawnInterval === 0) spawnBlock();
+
+  blocks.forEach(b => {
+    b.x += b.dx;
+    b.y += b.dy;
+    b.size = player.size;
+
+    if (b.type === "glitch") {
+      b.glitchTimer--;
+      if (b.glitchTimer <= 0) b.dead = true;
+    }
+
+    if (Math.abs(player.x - b.x) < (player.size+b.size)/2 &&
+        Math.abs(player.y - b.y) < (player.size+b.size)/2) {
+      if (b.type === "grow") {
+        player.size += 5;
+        score -= 1;
+        blackCount++;
+        addPopup("-1", "red");
+        if (blackCount >= 10) {
+          if (player.size > START_SIZE) {
+            player.size -= 1;
+            addPopup("size -1", "orange");
+          }
+          blackCount = 0;
+        }
+      } else if (b.type === "diagonal") {
+        gameOver = true;
+        spill = { x: b.x, y: b.y, radius: 0 };
+      } else if (b.type === "shrink") {
+        player.size = Math.max(10, player.size - 5);
+        score += 2;
+        addPopup("+2", "lime");
+      } else if (b.type === "normal") {
+        score++;
+        addPopup("+1", "white");
+        whiteCount++;
+        if (whiteCount >= 10) {
+          if (player.size > START_SIZE) {
+            player.size -= 1;
+            addPopup("size -1", "yellow");
+          }
+          whiteCount = 0;
+        }
+      } else if (b.type === "glitch") {
+        b.dead = true;
+      }
+      b.dead = true;
+    }
+  });
+
+  let maxBlocks = Math.min(60, 15 + Math.floor(Math.abs(score)/2));
+  blocks = blocks.filter(b => !b.dead &&
+    b.y < canvas.height+120 && b.y > -120 && b.x > -120 && b.x < canvas.width+120)
+    .slice(-maxBlocks);
+
+  popups.forEach(p => { p.y -= 0.5; p.alpha -= 0.02; });
+  popups = popups.filter(p => p.alpha > 0);
+
+  speed = 2 + Math.floor(Math.abs(score)/10);
+}
+
+function draw() {
+  ctx.fillStyle = "#222";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (!gameOver) {
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x-player.size/2, player.y-player.size/2, player.size, player.size);
+  }
+
+  blocks.forEach(b => {
+    ctx.fillStyle = b.color;
+    if (b.type === "shrink") {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.size/2, 0, Math.PI*2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(b.x-b.size/2, b.y-b.size/2, b.size, b.size);
+    }
+  });
+
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(5, 5, 160, 28);
+  ctx.fillStyle = "white";
+  ctx.font = "16px sans-serif";
+  ctx.fillText("Score: "+score, 15, 25);
+
+  ctx.font = "18px sans-serif";
+  ctx.textAlign = "right";
+  popups.forEach(p => {
+    ctx.fillStyle = `rgba(${p.color==="red"?"255,0,0":p.color==="lime"?"0,255,0":p.color==="yellow"?"255,255,0":p.color==="orange"?"255,165,0":"255,255,255"},${p.alpha})`;
+    ctx.fillText(p.text, canvas.width-10, p.y);
+  });
+  ctx.textAlign = "left";
+
+  if (spill) {
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(spill.x, spill.y, spill.radius, 0, Math.PI*2);
+    ctx.fill();
+    if (spill.radius > Math.max(canvas.width, canvas.height)*1.5) {
+      ctx.fillStyle = "black";
+      ctx.font = "28px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Game Over - Final Score: "+score, canvas.width/2, canvas.height/2 - 60);
+
+      ctx.font = "18px sans-serif";
+      ctx.fillText("Rules:", canvas.width/2, canvas.height/2 - 20);
+      ctx.fillText("White = +1 (10 whites → size -1)", canvas.width/2, canvas.height/2 + 5);
+      ctx.fillText("Black = Grow & -1 (10 blacks → size -1)", canvas.width/2, canvas.height/2 + 30);
+      ctx.fillText("Red = Game Over", canvas.width/2, canvas.height/2 + 55);
+      ctx.fillText("Green = Shrink & +2", canvas.width/2, canvas.height/2 + 80);
+      ctx.fillText("Glitch (pink) = disappears", canvas.width/2, canvas.height/2 + 105);
+
+      if (restartButton) {
+        ctx.fillStyle = "#blue";
+        ctx.fillRect(restartButton.x, restartButton.y, restartButton.w, restartButton.h);
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(restartButton.x, restartButton.y, restartButton.w, restartButton.h);
+        ctx.fillStyle = "white";
+        ctx.font = "20px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Restart", restartButton.x + restartButton.w/2, restartButton.y + restartButton.h/2 + 7);
+        ctx.textAlign = "left";
+      }
+    }
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
